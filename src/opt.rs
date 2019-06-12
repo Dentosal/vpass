@@ -16,12 +16,17 @@ pub struct OptRoot {
     #[structopt(short, long, group = "loudness", parse(from_occurrences))]
     pub verbose: u8,
 
+    /// Overrides vault directory path.
+    /// Config file is only looked here as well, if not specified separately.
+    #[structopt(short = "d", long)]
+    pub vault_dir: Option<PathBuf>,
+
     /// Overrides config file path
     #[structopt(short, long, group = "config")]
     pub config: Option<PathBuf>,
 
     /// Disables looking for config file, uses defaults instead
-    #[structopt(short, long, group = "config")]
+    #[structopt(long, group = "config")]
     pub disable_config: bool,
 
     /// Select vault by name

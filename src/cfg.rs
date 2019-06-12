@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
 
 use super::{opt, paths};
 
@@ -28,26 +27,16 @@ impl Config {
     }
 }
 
-pub fn path(args: &opt::OptRoot) -> PathBuf {
-    if args.disable_config {
-        panic!("Config file use disabled");
-    } else if let Some(cpath) = args.config.clone() {
-        cpath
-    } else {
-        paths::config_file()
-    }
-}
-
 pub fn read(args: &opt::OptRoot) -> Config {
     if args.disable_config {
         Config::default()
     } else {
-        Config::from_json_bytes(&fs::read(path(args)).expect("Unable to read config file"))
+        Config::from_json_bytes(&fs::read(paths::config_file(args)).expect("Unable to read config file"))
     }
 }
 
 pub fn write(args: &opt::OptRoot, c: Config) {
-    fs::write(path(args), c.to_json_bytes()).expect("Unable to write config");
+    fs::write(paths::config_file(args), c.to_json_bytes()).expect("Unable to write config");
 }
 
 pub fn modify<F, R>(args: &opt::OptRoot, f: F) -> R

@@ -3,12 +3,19 @@ use rust_sodium::{
     crypto::{pwhash, secretbox},
 };
 
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use std::fmt;
+use std::io::prelude::*;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json;
 
 pub trait Content = fmt::Debug + Serialize + DeserializeOwned + Clone + PartialEq + Eq;
+
+const MAGIC: u8 = 0xd7;
+const VERSION: u32 = 0;
 
 /// Vault encryption/decryption key+salt from password
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -71,9 +78,13 @@ impl<T: Content> Vault<T> {
         let key = VaultKey::new(password);
         let nonce = secretbox::gen_nonce();
         let plaintext = serde_json::to_vec(&self).unwrap();
-        let ciphertext = secretbox::seal(&plaintext, &nonce, &key.key);
-        let data = ciphertext; // TODO: compression
+        let mut e = GzEncoder::new(Vec::new(), Compression::best());
+        e.write_all(&plaintext).unwrap();
+        let compressed: Vec<u8> = e.finish().unwrap();
+        let data = secretbox::seal(&compressed, &nonce, &key.key);
         EncryptedVault {
+            magic: MAGIC,
+            version: VERSION,
             nonce,
             data,
             salt: key.salt,
@@ -83,25 +94,37 @@ impl<T: Content> Vault<T> {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct EncryptedVault {
+    /// Magic byte 0xd7
+    magic: u8,
+    /// Version, enough space for feature bits if needed in the future
+    version: u32,
+    /// Salt for the password
     salt: pwhash::Salt,
+    /// Salt for libsodium
     nonce: secretbox::Nonce,
+    /// The actual data as bytes
     data: Vec<u8>,
 }
 impl EncryptedVault {
     pub fn decrypt<T: Content>(self, password: &str) -> Option<Vault<T>> {
         let key = VaultKey::reconstruct(password, self.salt);
         let compressed = secretbox::open(&self.data, &self.nonce, &key.key).ok()?;
-        let plaintext = compressed; // TODO: (de)compression
-        let vault: Vault<T> = serde_json::from_slice(plaintext.as_slice()).ok().expect("JSON");
+        let mut gz = GzDecoder::new(compressed.as_slice());
+        let mut plaintext: Vec<u8> = Vec::new();
+        gz.read_to_end(&mut plaintext).expect("Decompress");
+        let vault: Vault<T> = serde_json::from_slice(plaintext.as_slice()).expect("JSON");
         Some(vault)
     }
 
-    pub fn to_bytes(self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
+    pub fn to_bytes(&self) -> Vec<u8> {
+        bincode::serialize(self).unwrap()
     }
 
-    pub fn from_bytes(data: &Vec<u8>) -> Self {
-        bincode::deserialize(data).unwrap()
+    pub fn from_bytes(data: &[u8]) -> Self {
+        let data: Self = bincode::deserialize(data).unwrap();
+        assert!(data.magic == MAGIC, "Invalid magic byte");
+        assert!(data.version == VERSION, "Unsupported version");
+        data
     }
 }
 
