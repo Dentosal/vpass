@@ -1,0 +1,21 @@
+[package]
+name = "vpass"
+version = "0.1.0"
+authors = ["Hannes Karppila <hannes.karppila@gmail.com>"]
+description = "Opinionated password manager"
+edition = "2018"
+
+[dependencies]
+maplit = "1.0.1"
+rust_sodium = "0.10.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.1.4"
+uuid = { version = "0.7", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Bin-only dependencies
+structopt = "0.2"
+rpassword = "3.0.2"
+dirs = "2.0.1"
+matches = "0.1.8"
