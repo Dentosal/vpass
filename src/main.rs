@@ -1,17 +1,20 @@
 // TODO: proper error handling
 
 #![deny(unused_must_use)]
+#![deny(clippy::all)]
+// mods
+mod cfg;
+mod clipboard;
+mod opt;
+mod paths;
+mod validate;
+
 use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
 use vpass;
-
-mod cfg;
-mod opt;
-mod paths;
-mod validate;
 
 #[must_use]
 fn prompt_password(prompt: &str) -> Option<String> {
@@ -191,6 +194,20 @@ fn main() {
                     }
                     println!("created: {}", meta.created);
                     println!("changed: {}", meta.changed);
+                }
+            } else {
+                eprintln!("Item {:?} not found", c.name);
+            }
+        },
+        SubCommand::Copy(ref c) => {
+            let p = get_vault_path(&args).expect("Vault not specified");
+            let pw = prompt_vault_password!();
+            let book = vpass::read(&p, &pw).expect("Unable to read vault");
+            if let Some(item) = book.items().iter().find(|item| item.name == c.name) {
+                if let Some(ref item_pw) = item.password {
+                    clipboard::write(&item_pw.plaintext());
+                } else {
+                    eprintln!("No password set for item");
                 }
             } else {
                 eprintln!("Item {:?} not found", c.name);

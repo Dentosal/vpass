@@ -15,15 +15,15 @@ impl Config {
         Self { default_vault: None }
     }
 
-    pub fn to_json_pretty(self) -> String {
-        serde_json::to_string_pretty(&self).unwrap()
+    pub fn to_json_pretty(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap()
     }
 
-    pub fn to_json_bytes(self) -> Vec<u8> {
-        serde_json::to_vec(&self).unwrap()
+    pub fn to_json_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap()
     }
 
-    pub fn from_json_bytes(data: &Vec<u8>) -> Self {
+    pub fn from_json_bytes(data: &[u8]) -> Self {
         serde_json::from_slice(data).expect("Invalid JSON in config")
     }
 }

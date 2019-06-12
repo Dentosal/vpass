@@ -235,7 +235,9 @@ pub struct OptShow {
 }
 
 #[derive(StructOpt, Debug, PartialEq)]
-pub struct OptCopy {}
+pub struct OptCopy {
+    pub name: String,
+}
 
 #[derive(StructOpt, Debug, PartialEq)]
 pub struct OptConfig {
