@@ -1,7 +1,11 @@
 use std::path::PathBuf;
 
-pub fn data_dir() -> PathBuf {
-    if cfg!(windows) {
+use super::opt;
+
+pub fn data_dir(args: &opt::OptRoot) -> PathBuf {
+    if let Some(ref v) = args.vault_dir {
+        v.into()
+    } else if cfg!(windows) {
         dirs::data_dir().unwrap().join(env!("CARGO_PKG_NAME"))
     } else {
         dirs::home_dir()
@@ -9,6 +13,12 @@ pub fn data_dir() -> PathBuf {
             .join(concat!(".", env!("CARGO_PKG_NAME")))
     }
 }
-pub fn config_file() -> PathBuf {
-    data_dir().join("config.json")
+pub fn config_file(args: &opt::OptRoot) -> PathBuf {
+    if args.disable_config {
+        panic!("Config file use disabled");
+    } else if let Some(cpath) = args.config.clone() {
+        cpath
+    } else {
+        data_dir(args).join("config.json")
+    }
 }

@@ -22,6 +22,11 @@ pub struct Book {
     events: Vec<EventFrame>,
     created: DateTime<Utc>,
 }
+impl Default for Book {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Book {
     pub fn new() -> Book {
         Book {
@@ -326,8 +331,7 @@ mod tests {
     #[test]
     fn book_build() {
         let mut book = Book::new();
-        let mut item0 = Item::new("Test 1");
-        let id0 = book.add(item0);
+        let id0 = book.add(Item::new("Test 1"));
 
         book.modify(id0, |it| {
             it.password = Some(Password::new("SecondPass123"));

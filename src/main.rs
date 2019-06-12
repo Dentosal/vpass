@@ -23,8 +23,8 @@ fn prompt_password(prompt: &str) -> Option<String> {
     Some(pass)
 }
 
-fn list_vaults(_args: &opt::OptRoot) -> Vec<String> {
-    fs::read_dir(paths::data_dir())
+fn list_vaults(args: &opt::OptRoot) -> Vec<String> {
+    fs::read_dir(paths::data_dir(args))
         .expect("Vault dir missing")
         .filter_map(|d| {
             let p = d.unwrap().path();
@@ -49,10 +49,10 @@ fn get_vault_path(args: &opt::OptRoot) -> Option<PathBuf> {
         let vaults = list_vaults(args);
         if let Some(name) = args.vault_name.clone() {
             assert!(vaults.contains(&name), "No such vault");
-            Some(paths::data_dir().join(format!("{}.vpass_vault", name)))
+            Some(paths::data_dir(args).join(format!("{}.vpass_vault", name)))
         } else if let Some(name) = cfg::read(args).default_vault.clone() {
             assert!(vaults.contains(&name), "Default vault missing");
-            Some(paths::data_dir().join(format!("{}.vpass_vault", name)))
+            Some(paths::data_dir(args).join(format!("{}.vpass_vault", name)))
         } else {
             None
         }
@@ -75,13 +75,13 @@ fn main() {
     }
 
     if args.subcommand != SubCommand::Init {
-        assert!(paths::data_dir().is_dir(), "Unitialized");
-        assert!(paths::config_file().exists(), "Unitialized");
+        assert!(paths::data_dir(&args).is_dir(), "Unitialized");
+        assert!(paths::config_file(&args).exists(), "Unitialized");
     }
 
     match args.subcommand {
         SubCommand::Init => {
-            fs::create_dir_all(&paths::data_dir()).expect("Unable to create data dir");
+            fs::create_dir_all(&paths::data_dir(&args)).expect("Unable to create data dir");
             cfg::write(&args, cfg::Config::default());
             println!("Initialization complete");
         },
@@ -89,7 +89,7 @@ fn main() {
             VaultSubCommand::Create(ref c) => {
                 validate::vault_name(&c.name).expect("Invalid vault name");
                 let pw = prompt_vault_password!();
-                let p = paths::data_dir().join(format!("{}.vpass_vault", c.name));
+                let p = paths::data_dir(&args).join(format!("{}.vpass_vault", c.name));
                 vpass::create_vault(&p, &pw).expect("Unable to create vault");
             },
             VaultSubCommand::Rename(ref c) => {
@@ -99,8 +99,8 @@ fn main() {
                 assert!(vaults.contains(&c.old_name), "Source vault not found");
                 assert!(!vaults.contains(&c.new_name), "Target vault already exists");
                 fs::rename(
-                    &paths::data_dir().join(&format!("{}.vpass_vault", c.old_name)),
-                    &paths::data_dir().join(&format!("{}.vpass_vault", c.new_name)),
+                    &paths::data_dir(&args).join(&format!("{}.vpass_vault", c.old_name)),
+                    &paths::data_dir(&args).join(&format!("{}.vpass_vault", c.new_name)),
                 )
                 .unwrap();
             },
