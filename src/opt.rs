@@ -22,11 +22,11 @@ pub struct OptRoot {
     pub vault_dir: Option<PathBuf>,
 
     /// Overrides config file path
-    #[structopt(short, long, group = "config")]
+    #[structopt(short, long, group = "config_xor")]
     pub config: Option<PathBuf>,
 
     /// Disables looking for config file, uses defaults instead
-    #[structopt(long, group = "config")]
+    #[structopt(long, group = "config_xor")]
     pub disable_config: bool,
 
     /// Select vault by name
