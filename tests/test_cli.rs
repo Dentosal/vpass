@@ -62,14 +62,19 @@ fn check_password(td: &TempDir, name: &str, password: &str) {
     cmd!(td; "-p" password "-n" name "list")
 }
 
-// fn add_item(td: &TempDir, name: &str, password: &str, item_name: &str, item_password: &str) {
-//     let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
-//         .unwrap()
-//         .args(&["-p", password, "vault", "create", name])
-//         .env("VPASS_VAULT_DIR", td.path())
-//         .unwrap();
-//     assert!(output.status.success());
-// }
+fn add_item(td: &TempDir, name: &str, password: &str, item_name: &str, item_password: &str) {
+    cmd!(td; "-p" password "-n" name "add" item_name "-p" item_password)
+}
+
+fn get_item_json(td: &TempDir, name: &str, password: &str, item_name: &str) -> serde_json::Value {
+    let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
+        .unwrap()
+        .args(&["-p", password, "-n", name, "show", item_name, "-jp"])
+        .env("VPASS_VAULT_DIR", td.path())
+        .unwrap();
+    assert!(output.status.success());
+    serde_json::from_slice(&output.stdout).unwrap()
+}
 
 #[test]
 fn test_cli_init() -> io::Result<()> {
@@ -143,4 +148,15 @@ fn test_vault_rename_duplicate() {
     vault_create(&td, "test1", "p1");
     vault_create(&td, "test2", "p2");
     vault_rename(&td, "test1", "test2");
+}
+
+#[test]
+fn test_vault_new_item() -> io::Result<()> {
+    let td = init()?;
+    vault_create(&td, "test", "password");
+    add_item(&td, "test", "password", "item_name", "item_password");
+    let json = get_item_json(&td, "test", "password", "item_name");
+    let pw = json.as_object().unwrap().get("password").unwrap();
+    assert_eq!(pw, "item_password");
+    Ok(())
 }
