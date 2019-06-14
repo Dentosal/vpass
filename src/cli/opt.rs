@@ -244,10 +244,6 @@ pub struct OptCopy {
 
 #[derive(StructOpt, Debug, PartialEq)]
 pub struct OptConfig {
-    /// Print config
-    #[structopt(short, long, group = "xor")]
-    pub print: bool,
-
     /// Print config as JSON
     #[structopt(short, long, group = "xor")]
     pub json: bool,
@@ -255,8 +251,4 @@ pub struct OptConfig {
     /// Override the config file with default config
     #[structopt(long, group = "xor")]
     pub clear: bool,
-
-    /// Override the config file with default config
-    #[structopt(group = "xor")]
-    pub expr: String,
 }

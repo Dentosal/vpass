@@ -180,7 +180,7 @@ fn main() {
                         ));
                     }
 
-                    let mut indices = c.remove_notes.clone();
+                    let indices = c.remove_notes.clone();
                     assert!(indices
                         .iter()
                         .max()
@@ -191,7 +191,7 @@ fn main() {
                         .iter()
                         .enumerate()
                         .filter(|(i, _)| !indices.contains(i))
-                        .map(|(i, v)| v)
+                        .map(|(_, v)| v)
                         .chain(c.notes.iter())
                         .cloned()
                         .collect();
@@ -206,6 +206,39 @@ fn main() {
                 })
                 .unwrap();
 
+                vpass::write(&p, &pw, book).expect("Unable to write vault");
+            } else {
+                panic!("Item not found");
+            }
+        },
+        SubCommand::Rename(ref c) => {
+            let p = get_vault_path(&args).expect("Vault not specified");
+            let pw = prompt_vault_password!();
+
+            let mut book = vpass::read(&p, &pw).expect("Unable to read vault");
+            let items = book.items();
+            assert!(
+                items.is_empty() || items.iter().all(|item| item.name != c.new_name),
+                "Item already exists"
+            );
+            if let Some((id, _)) = book.id_items().iter().find(|(_, item)| item.name == c.old_name) {
+                book.modify(*id, |item| {
+                    item.name = c.new_name.clone();
+                })
+                .unwrap();
+
+                vpass::write(&p, &pw, book).expect("Unable to write vault");
+            } else {
+                panic!("Item not found");
+            }
+        },
+        SubCommand::Remove(ref c) => {
+            let p = get_vault_path(&args).expect("Vault not specified");
+            let pw = prompt_vault_password!();
+
+            let mut book = vpass::read(&p, &pw).expect("Unable to read vault");
+            if let Some((id, _)) = book.id_items().iter().find(|(_, item)| item.name == c.name) {
+                book.remove(*id);
                 vpass::write(&p, &pw, book).expect("Unable to write vault");
             } else {
                 panic!("Item not found");
@@ -279,6 +312,16 @@ fn main() {
                 eprintln!("Item {:?} not found", c.name);
             }
         },
-        _ => unimplemented!("Unsupported subcommand"),
+        SubCommand::Config(ref c) => {
+            let config = cfg::read(&args);
+
+            if c.json {
+                println!("{}", String::from_utf8(config.to_json_bytes()).unwrap());
+            } else if c.clear {
+                cfg::write(&args, cfg::Config::default());
+            } else {
+                println!("{}", config.to_json_pretty());
+            }
+        },
     }
 }

@@ -1,5 +1,4 @@
 #![feature(trait_alias)]
-#![feature(iter_copied)]
 #![feature(bind_by_move_pattern_guards)]
 #![feature(vec_remove_item)]
 #![deny(unused_must_use)]
