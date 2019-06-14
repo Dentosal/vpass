@@ -193,13 +193,13 @@ pub struct OptEdit {
     #[structopt(name = "remove-note", long = "remove-note")]
     pub remove_notes: Vec<usize>,
 
-    /// Change password, prompts for a new one
+    /// Change password, takes password as argument instead of prompt
     #[structopt(short, long, group = "password_xor")]
     pub password: Option<String>,
 
-    /// Change password, takes password as argument instead of prompt
+    /// Change password, prompts for a new one
     #[structopt(short, long, group = "password_xor")]
-    pub change_passsword: bool,
+    pub change_password: bool,
 }
 
 #[derive(StructOpt, Debug, PartialEq)]

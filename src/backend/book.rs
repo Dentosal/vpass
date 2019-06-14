@@ -157,6 +157,13 @@ impl Book {
             .collect()
     }
 
+    pub fn id_items(&self) -> Vec<(ItemId, Item)> {
+        self.item_ids()
+            .into_iter()
+            .map(|id| (id, self.read_item(id).unwrap()))
+            .collect()
+    }
+
     /// Items and associated metadata
     pub fn items_metadata(&self) -> Vec<(Item, ItemMetadata)> {
         self.item_ids()

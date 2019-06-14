@@ -137,25 +137,25 @@ fn main() {
                 unimplemented!(); // TODO
             },
         },
-        SubCommand::Add(ref add) => {
+        SubCommand::Add(ref c) => {
             let p = get_vault_path(&args).expect("Vault not specified");
             let pw = prompt_vault_password!();
 
             let mut book = vpass::read(&p, &pw).expect("Unable to read vault");
             let items = book.items();
             assert!(
-                items.is_empty() || items.iter().all(|item| item.name != add.name),
+                items.is_empty() || items.iter().all(|item| item.name != c.name),
                 "Item already exists"
             );
             book.add(vpass::Item {
-                name: add.name.clone(),
-                tags: add.tags.iter().cloned().collect(),
-                notes: add.notes.clone(),
-                password: add
+                name: c.name.clone(),
+                tags: c.tags.iter().cloned().collect(),
+                notes: c.notes.clone(),
+                password: c
                     .password
                     .clone()
                     .or_else(|| {
-                        if add.skip_password {
+                        if c.skip_password {
                             None
                         } else {
                             Some(prompt_password("Password [item]:").expect("Unable to read password"))
@@ -164,6 +164,52 @@ fn main() {
                     .map(|pass| vpass::Password::new(&pass)),
             });
             vpass::write(&p, &pw, book).expect("Unable to write vault");
+        },
+        SubCommand::Edit(ref c) => {
+            let p = get_vault_path(&args).expect("Vault not specified");
+            let pw = prompt_vault_password!();
+
+            let mut book = vpass::read(&p, &pw).expect("Unable to read vault");
+            if let Some((id, _)) = book.id_items().iter().find(|(_, item)| item.name == c.name) {
+                book.modify(*id, |item| {
+                    if let Some(ref new_pw) = c.password {
+                        item.password = Some(vpass::Password::new(new_pw));
+                    } else if c.change_password {
+                        item.password = Some(vpass::Password::new(
+                            &prompt_password("New password:").expect("Unable to read password"),
+                        ));
+                    }
+
+                    let mut indices = c.remove_notes.clone();
+                    assert!(indices
+                        .iter()
+                        .max()
+                        .map(|m| m < &item.notes.len())
+                        .unwrap_or(true));
+                    item.notes = item
+                        .notes
+                        .iter()
+                        .enumerate()
+                        .filter(|(i, _)| !indices.contains(i))
+                        .map(|(i, v)| v)
+                        .chain(c.notes.iter())
+                        .cloned()
+                        .collect();
+
+                    item.tags = item
+                        .tags
+                        .iter()
+                        .filter(|tag| !c.remove_tags.contains(tag))
+                        .chain(c.tags.iter())
+                        .cloned()
+                        .collect();
+                })
+                .unwrap();
+
+                vpass::write(&p, &pw, book).expect("Unable to write vault");
+            } else {
+                panic!("Item not found");
+            }
         },
         SubCommand::List(ref c) => {
             let p = get_vault_path(&args).expect("Vault not specified");

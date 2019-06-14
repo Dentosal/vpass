@@ -66,6 +66,14 @@ fn add_item(td: &TempDir, name: &str, password: &str, item_name: &str, item_pass
     cmd!(td; "-p" password "-n" name "add" item_name "-p" item_password)
 }
 
+fn edit_item_change_password(td: &TempDir, name: &str, password: &str, item_name: &str, new_password: &str) {
+    cmd!(td; "-p" password "-n" name "edit" item_name "-p" new_password)
+}
+
+fn edit_item_add_tag(td: &TempDir, name: &str, password: &str, item_name: &str, tag: &str) {
+    cmd!(td; "-p" password "-n" name "edit" item_name "-t" tag)
+}
+
 fn get_item_json(td: &TempDir, name: &str, password: &str, item_name: &str) -> serde_json::Value {
     let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
@@ -158,5 +166,36 @@ fn test_vault_new_item() -> io::Result<()> {
     let json = get_item_json(&td, "test", "password", "item_name");
     let pw = json.as_object().unwrap().get("password").unwrap();
     assert_eq!(pw, "item_password");
+    Ok(())
+}
+
+#[test]
+fn test_vault_edit_item_password() -> io::Result<()> {
+    let td = init()?;
+    vault_create(&td, "test", "password");
+    add_item(&td, "test", "password", "item_name", "item_password");
+    edit_item_change_password(&td, "test", "password", "item_name", "new_password");
+    let json = get_item_json(&td, "test", "password", "item_name");
+    let pw = json.as_object().unwrap().get("password").unwrap();
+    assert_eq!(pw, "new_password");
+    Ok(())
+}
+
+#[test]
+fn test_vault_edit_item_tags() -> io::Result<()> {
+    let td = init()?;
+    vault_create(&td, "test", "password");
+    add_item(&td, "test", "password", "item_name", "item_password");
+    edit_item_add_tag(&td, "test", "password", "item_name", "tag1");
+    edit_item_add_tag(&td, "test", "password", "item_name", "tag2");
+    let json = get_item_json(&td, "test", "password", "item_name");
+    let tag_values = json.as_object().unwrap().get("tags").unwrap();
+    let tags = tag_values
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t.as_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(tags, vec!["tag1", "tag2"]);
     Ok(())
 }
