@@ -18,7 +18,7 @@ pub struct OptRoot {
 
     /// Overrides vault directory path.
     /// Config file is only looked here as well, if not specified separately.
-    #[structopt(short = "d", long)]
+    #[structopt(short = "d", long, env = "VPASS_VAULT_DIR")]
     pub vault_dir: Option<PathBuf>,
 
     /// Overrides config file path
@@ -118,11 +118,7 @@ pub struct OptVaultRename {
 
 #[derive(StructOpt, Debug, PartialEq)]
 pub struct OptVaultDelete {
-    #[structopt(name = "name", group = "xor")]
-    pub names: Vec<String>,
-
-    #[structopt(short, long, group = "xor")]
-    pub all: bool,
+    pub name: String,
 
     /// Do not prompt for vault password to confirm
     #[structopt(long)]
@@ -131,8 +127,10 @@ pub struct OptVaultDelete {
 
 #[derive(StructOpt, Debug, PartialEq)]
 pub struct OptVaultChangePassword {
+    pub name: String,
+
     /// Give password as argument instead of prompt
-    #[structopt(short, long, group = "password")]
+    #[structopt(short, long)]
     pub password: Option<String>,
 }
 
@@ -166,11 +164,11 @@ pub struct OptAdd {
     pub notes: Vec<String>,
 
     /// Give password as argument instead of prompt
-    #[structopt(short, long, group = "password")]
+    #[structopt(short, long, group = "password_xor")]
     pub password: Option<String>,
 
     /// Skip password
-    #[structopt(short, long, group = "password")]
+    #[structopt(short, long, group = "password_xor")]
     pub skip_password: bool,
 }
 
@@ -196,11 +194,11 @@ pub struct OptEdit {
     pub remove_notes: Vec<usize>,
 
     /// Change password, prompts for a new one
-    #[structopt(short, long, group = "password")]
+    #[structopt(short, long, group = "password_xor")]
     pub password: Option<String>,
 
     /// Change password, takes password as argument instead of prompt
-    #[structopt(short, long, group = "password")]
+    #[structopt(short, long, group = "password_xor")]
     pub change_passsword: bool,
 }
 

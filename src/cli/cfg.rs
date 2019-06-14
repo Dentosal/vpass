@@ -10,7 +10,7 @@ pub struct Config {
     pub default_vault: Option<String>,
 }
 impl Config {
-    pub fn default() -> Self {
+    pub const fn default() -> Self {
         Self { default_vault: None }
     }
 

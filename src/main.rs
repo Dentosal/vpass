@@ -1,20 +1,11 @@
 // TODO: proper error handling
 
-#![deny(unused_must_use)]
-#![deny(clippy::all)]
-// mods
-mod cfg;
-mod clipboard;
-mod opt;
-mod paths;
-mod validate;
+use vpass::{self, cli::*};
 
 use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 use structopt::StructOpt;
-
-use vpass;
 
 #[must_use]
 fn prompt_password(prompt: &str) -> Option<String> {
@@ -104,6 +95,28 @@ fn main() {
                 )
                 .unwrap();
             },
+            VaultSubCommand::Delete(ref c) => {
+                let vaults = list_vaults(&args);
+                assert!(vaults.contains(&c.name), "Vault not found");
+                let p = paths::data_dir(&args).join(&format!("{}.vpass_vault", c.name));
+                if !c.force {
+                    println!("Confirm vault deletion:");
+                    let pw = prompt_vault_password!();
+                    vpass::read(&p, &pw).expect("Invalid password, abort");
+                }
+                fs::remove_file(&p).unwrap();
+            },
+            VaultSubCommand::ChangePassword(ref c) => {
+                let vaults = list_vaults(&args);
+                assert!(vaults.contains(&c.name), "Vault not found");
+                let p = paths::data_dir(&args).join(&format!("{}.vpass_vault", c.name));
+                let pw = prompt_vault_password!();
+                let book = vpass::read(&p, &pw).expect("Invalid password, abort");
+                let new_pw = c.password.clone().unwrap_or_else(|| {
+                    prompt_password("New password [vault]:").expect("Unable to read password")
+                });
+                vpass::write(&p, &new_pw, book).expect("Unable to write vault");
+            },
             VaultSubCommand::List(ref c) => {
                 let vaults = list_vaults(&args);
                 println!(
@@ -115,7 +128,14 @@ fn main() {
                     }
                 );
             },
-            _ => eprintln!("Unsupported subsubcommand"),
+            VaultSubCommand::Show(ref c) => {
+                let vaults = list_vaults(&args);
+                assert!(vaults.contains(&c.name), "Vault not found");
+                let p = paths::data_dir(&args).join(&format!("{}.vpass_vault", c.name));
+                let pw = prompt_vault_password!();
+                vpass::read(&p, &pw).expect("Unable to read vault");
+                unimplemented!(); // TODO
+            },
         },
         SubCommand::Add(ref add) => {
             let p = get_vault_path(&args).expect("Vault not specified");
@@ -213,6 +233,6 @@ fn main() {
                 eprintln!("Item {:?} not found", c.name);
             }
         },
-        _ => eprintln!("Unsupported subcommand"),
+        _ => unimplemented!("Unsupported subcommand"),
     }
 }

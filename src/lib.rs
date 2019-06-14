@@ -3,16 +3,18 @@
 #![feature(bind_by_move_pattern_guards)]
 #![feature(vec_remove_item)]
 #![deny(unused_must_use)]
-// mods
-pub mod book;
-pub mod vault;
+#![deny(clippy::all)]
+#![allow(dead_code, unused_imports)]
+
+mod backend;
+pub mod cli;
 
 use std::fs;
 use std::io;
 use std::path::Path;
 
-pub use book::{Book, Item, ItemMetadata, Password};
-use vault::{EncryptedVault, Vault};
+pub use backend::book::{Book, Item, ItemMetadata, Password};
+use backend::vault::{EncryptedVault, Vault};
 
 /// Read an encrypted book from a file
 #[must_use]
