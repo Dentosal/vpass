@@ -1,4 +1,6 @@
 use assert_cmd::prelude::*;
+use maplit::hashset;
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::process::Command;
@@ -195,7 +197,7 @@ fn test_vault_edit_item_tags() -> io::Result<()> {
         .unwrap()
         .iter()
         .map(|t| t.as_str().unwrap().to_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(tags, vec!["tag1", "tag2"]);
+        .collect::<HashSet<_>>();
+    assert_eq!(tags, hashset!["tag1".to_owned(), "tag2".to_owned()]);
     Ok(())
 }
