@@ -4,10 +4,6 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug, PartialEq)]
 #[structopt(rename_all = "kebab-case")]
 pub struct OptRoot {
-    /// Quiet mode: don't print anything if not spefically requested
-    #[structopt(short, long, group = "loudness")]
-    pub silent: bool,
-
     /// Quiet mode: only print errors and prompts
     #[structopt(short, long, group = "loudness")]
     pub quiet: bool,

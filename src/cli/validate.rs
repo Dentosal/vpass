@@ -1,3 +1,5 @@
+use crate::cli::error::{Error, VResult};
+
 /// Human readable validation error
 #[derive(Debug, Clone)]
 pub enum ValidationError {
@@ -8,16 +10,16 @@ pub enum ValidationError {
 
 /// Validate vault name, [a-zA-Z0-9._]+ no adjacent dots
 #[must_use]
-pub fn vault_name(name: &str) -> Result<(), ValidationError> {
+pub fn vault_name(name: &str) -> VResult<()> {
     if name.is_empty() {
-        Err(ValidationError::Empty)
+        Err(Error::VaultNameInvalid(ValidationError::Empty))
     } else if !name
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || "_.".contains(c))
     {
-        Err(ValidationError::InvalidCharacters)
+        Err(Error::VaultNameInvalid(ValidationError::InvalidCharacters))
     } else if name.contains("..") {
-        Err(ValidationError::InvalidPattern)
+        Err(Error::VaultNameInvalid(ValidationError::InvalidPattern))
     } else {
         Ok(())
     }

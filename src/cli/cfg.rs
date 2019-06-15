@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-use super::{opt, paths};
+use super::{error::*, opt, paths};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Config {
@@ -22,29 +22,32 @@ impl Config {
         serde_json::to_vec(self).unwrap()
     }
 
-    pub fn from_json_bytes(data: &[u8]) -> Self {
-        serde_json::from_slice(data).expect("Invalid JSON in config")
+    pub fn from_json_bytes(data: &[u8]) -> VResult<Self> {
+        serde_json::from_slice(data).map_err(|e| Error::ConfigInvalidJson(e))
     }
 }
 
-pub fn read(args: &opt::OptRoot) -> Config {
+pub fn read(args: &opt::OptRoot) -> VResult<Config> {
     if args.disable_config {
-        Config::default()
+        Ok(Config::default())
     } else {
-        Config::from_json_bytes(&fs::read(paths::config_file(args)).expect("Unable to read config file"))
+        let p = paths::config_file(args)?;
+        Config::from_json_bytes(&fs::read(p)?)
     }
 }
 
-pub fn write(args: &opt::OptRoot, c: Config) {
-    fs::write(paths::config_file(args), c.to_json_bytes()).expect("Unable to write config");
+pub fn write(args: &opt::OptRoot, c: Config) -> VResult<()> {
+    let p = paths::config_file(args)?;
+    fs::write(p, c.to_json_bytes())?;
+    Ok(())
 }
 
-pub fn modify<F, R>(args: &opt::OptRoot, f: F) -> R
+pub fn modify<F, R>(args: &opt::OptRoot, f: F) -> VResult<R>
 where
     F: FnOnce(&mut Config) -> R,
 {
-    let mut c = read(args);
+    let mut c = read(args)?;
     let r = f(&mut c);
-    write(args, c);
-    r
+    write(args, c)?;
+    Ok(r)
 }

@@ -106,13 +106,14 @@ pub struct EncryptedVault {
     data: Vec<u8>,
 }
 impl EncryptedVault {
+    #[must_use]
     pub fn decrypt<T: Content>(self, password: &str) -> Option<Vault<T>> {
         let key = VaultKey::reconstruct(password, self.salt);
         let compressed = secretbox::open(&self.data, &self.nonce, &key.key).ok()?;
         let mut gz = GzDecoder::new(compressed.as_slice());
         let mut plaintext: Vec<u8> = Vec::new();
-        gz.read_to_end(&mut plaintext).expect("Decompress");
-        let vault: Vault<T> = serde_json::from_slice(plaintext.as_slice()).expect("JSON");
+        gz.read_to_end(&mut plaintext).expect("Decompression failed");
+        let vault: Vault<T> = serde_json::from_slice(plaintext.as_slice()).expect("Invalid JSON");
         Some(vault)
     }
 
@@ -120,11 +121,13 @@ impl EncryptedVault {
         bincode::serialize(self).unwrap()
     }
 
-    pub fn from_bytes(data: &[u8]) -> Self {
-        let data: Self = bincode::deserialize(data).unwrap();
+    /// Only errors when decoding fails
+    #[must_use]
+    pub fn from_bytes(data: &[u8]) -> Result<Self, ()> {
+        let data: Self = bincode::deserialize(data).map_err(|_| ())?;
         assert!(data.magic == MAGIC, "Invalid magic byte");
         assert!(data.version == VERSION, "Unsupported version");
-        data
+        Ok(data)
     }
 }
 
@@ -140,7 +143,7 @@ mod tests {
         let v = Vault::new(1337u32);
         let ec = v.encrypt(password);
         let bytes = ec.clone().to_bytes();
-        let ec2 = EncryptedVault::from_bytes(&bytes);
+        let ec2 = EncryptedVault::from_bytes(&bytes).expect("Decode");
         assert_eq!(ec, ec2);
         let v2 = ec2.decrypt(password).expect("Decryption failed");
 
@@ -154,7 +157,7 @@ mod tests {
         let v = Vault::new(1337u32);
         let ec = v.encrypt("TestPass");
         let bytes = ec.clone().to_bytes();
-        let ec2 = EncryptedVault::from_bytes(&bytes);
+        let ec2 = EncryptedVault::from_bytes(&bytes).expect("Decode");
         assert_eq!(ec, ec2);
         assert!(ec2.decrypt::<u32>("WrongPass") == None);
     }

@@ -7,15 +7,11 @@ use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
 
+use crate::cli::error::{Error, VResult};
+
 /// The contents of this are an implementation detail
 #[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ItemId(Uuid);
-impl ItemId {
-    /// Invalid id for testing purposes
-    fn _invalid() -> Self {
-        Self(Uuid::nil())
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Book {
@@ -76,7 +72,7 @@ impl Book {
 
     /// Updates item by mapping the old value
     #[must_use]
-    pub fn modify<F, R>(&mut self, item_id: ItemId, f: F) -> Option<R>
+    fn modify<F, R>(&mut self, item_id: ItemId, f: F) -> Option<R>
     where
         F: FnOnce(&mut Item) -> R,
     {
@@ -86,15 +82,28 @@ impl Book {
         Some(r)
     }
 
-    pub fn remove(&mut self, item_id: ItemId) {
-        if !self.item_ids().contains(&item_id) {
-            panic!("Cannot remove nonexistent ItemId");
-        }
+    /// Updates item by mapping the old value
+    #[must_use]
+    pub fn modify_by_name<F, R>(&mut self, name: &str, f: F) -> VResult<R>
+    where
+        F: FnOnce(&mut Item) -> R,
+    {
+        Ok(self
+            .modify(
+                self.find_id_by_name(name)
+                    .ok_or(Error::NoSuchItem(name.to_owned()))?,
+                f,
+            )
+            .unwrap())
+    }
 
+    pub fn remove(&mut self, name: &str) -> VResult<()> {
+        let id = self.get_id_by_name(name)?;
         self.events.push(EventFrame {
             time: Utc::now(),
-            event: Event::Remove(item_id),
+            event: Event::Remove(id),
         });
+        Ok(())
     }
 
     /// All ItemId:s, including removed ones
@@ -107,19 +116,19 @@ impl Book {
         self.events.iter().filter_map(EventFrame::removes_id).collect()
     }
 
-    pub fn item_ids(&self) -> HashSet<ItemId> {
+    fn item_ids(&self) -> HashSet<ItemId> {
         self.all_ids().difference(&self.removed_ids()).copied().collect()
     }
 
     #[must_use]
-    pub fn read_item(&self, id: ItemId) -> Option<Item> {
+    fn read_item(&self, id: ItemId) -> Option<Item> {
         for ef in self.events.iter().rev() {
             match ef.clone().event {
                 Event::Update(e_id, event) if e_id == id => {
                     return Some(event);
                 },
                 Event::Create(e_id) if e_id == id => {
-                    panic!("Item created but not initialized");
+                    unreachable!("Item created but not initialized");
                 },
                 _ => {},
             }
@@ -128,7 +137,7 @@ impl Book {
     }
 
     #[must_use]
-    pub fn read_item_metadata(&self, id: ItemId) -> Option<ItemMetadata> {
+    fn read_item_metadata(&self, id: ItemId) -> Option<ItemMetadata> {
         let mut created: Option<DateTime<Utc>> = None;
         let mut changed: Option<DateTime<Utc>> = None;
 
@@ -157,7 +166,7 @@ impl Book {
             .collect()
     }
 
-    pub fn id_items(&self) -> Vec<(ItemId, Item)> {
+    fn id_items(&self) -> Vec<(ItemId, Item)> {
         self.item_ids()
             .into_iter()
             .map(|id| (id, self.read_item(id).unwrap()))
@@ -170,6 +179,59 @@ impl Book {
             .into_iter()
             .map(|id| (self.read_item(id).unwrap(), self.read_item_metadata(id).unwrap()))
             .collect()
+    }
+
+    /// Items and associated metadata
+    pub fn get_item_and_metadata(&self, name: &str) -> VResult<(Item, ItemMetadata)> {
+        let id = self.get_id_by_name(name)?;
+        Ok((self.read_item(id).unwrap(), self.read_item_metadata(id).unwrap()))
+    }
+
+    fn find_id<F>(&self, f: F) -> Option<ItemId>
+    where
+        F: Fn(&Item) -> bool,
+    {
+        self.id_items()
+            .iter()
+            .find(|(_, item)| f(item))
+            .map(|(id, _)| *id)
+    }
+
+    fn find_id_by_name(&self, name: &str) -> Option<ItemId> {
+        self.find_id(|item| item.name == name)
+    }
+
+    pub fn has_item(&self, name: &str) -> bool {
+        self.find_id_by_name(name).is_some()
+    }
+
+    fn get_id_by_name(&self, name: &str) -> VResult<ItemId> {
+        self.find_id_by_name(name)
+            .ok_or(Error::NoSuchItem(name.to_owned()))
+    }
+
+    pub fn get_item_by_name(&self, name: &str) -> VResult<Item> {
+        Ok(self.read_item(self.get_id_by_name(name)?).unwrap())
+    }
+
+    pub fn verify_exists(&self, name: &str) -> VResult<()> {
+        if self.has_item(name) {
+            Ok(())
+        } else {
+            Err(Error::NoSuchItem(name.to_owned()))
+        }
+    }
+
+    pub fn verify_not_exists(&self, name: &str) -> VResult<()> {
+        if self.has_item(name) {
+            Err(Error::ItemALreadyExists(name.to_owned()))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn item_names(&self) -> Vec<String> {
+        self.items().iter().map(|item| item.name.clone()).collect()
     }
 
     /// Index of the the last common event
@@ -375,10 +437,10 @@ mod tests {
         book2.add(Item::new("Test 2"));
         assert_eq!(book1.differ_index(&book2), Some(2));
 
-        let t3 = book2.add(Item::new("Test 3"));
+        book2.add(Item::new("Test 3"));
         assert_eq!(book1.differ_index(&book2), Some(2));
 
-        book2.remove(t3);
+        book2.remove("Test 3").unwrap();
         assert_eq!(book1.differ_index(&book2), Some(2));
     }
 
@@ -390,7 +452,7 @@ mod tests {
         book1.add(Item::new("Test 1"));
         book1.add(Item::new("Test 2"));
 
-        let item3 = book2.add(Item::new("Test 3"));
+        book2.add(Item::new("Test 3"));
 
         let mut book3 = book2.clone();
         book3.add(Item::new("Test 4"));
@@ -399,7 +461,7 @@ mod tests {
         assert_eq!(book2.item_ids().len(), 1);
         assert_eq!(book3.item_ids().len(), 2);
 
-        book3.remove(item3);
+        book3.remove("Test 3").unwrap();
 
         assert_eq!(book3.item_ids().len(), 1);
 
@@ -430,6 +492,6 @@ mod tests {
     #[should_panic]
     fn book_remove_nonexistent() {
         let mut book = Book::new();
-        book.remove(ItemId::_invalid());
+        book.remove("Nonexistent").unwrap();
     }
 }

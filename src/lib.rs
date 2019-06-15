@@ -14,31 +14,30 @@ use std::path::Path;
 
 pub use backend::book::{Book, Item, ItemMetadata, Password};
 use backend::vault::{EncryptedVault, Vault};
+use cli::error::{Error, VResult};
 
 /// Read an encrypted book from a file
-#[must_use]
-pub fn read(path: &Path, password: &str) -> Option<Book> {
-    let vault = EncryptedVault::from_bytes(&fs::read(path).ok()?)
+pub fn read(path: &Path, password: &str) -> VResult<Book> {
+    Ok(EncryptedVault::from_bytes(&fs::read(path)?)
+        .map_err(|_| Error::VaultCorrupted)?
         .decrypt(password)
-        .expect("Wrong password or corrupted file");
-    Some(vault.content)
+        .ok_or(Error::WrongPassword)?
+        .content)
 }
 
 /// Write a book to an encrypted file
-#[must_use]
-pub fn write(path: &Path, password: &str, book: Book) -> io::Result<()> {
+pub fn write(path: &Path, password: &str, book: Book) -> VResult<()> {
     let encrypted = Vault::new(book).encrypt(password);
-    fs::write(path, encrypted.to_bytes())
+    fs::write(path, encrypted.to_bytes()).map_err(Error::from)
 }
 
 /// Creates a new, empty vault to given path
-#[must_use]
-pub fn create_vault(path: &Path, password: &str) -> io::Result<()> {
+pub fn create(path: &Path, password: &str) -> VResult<()> {
     if path.exists() {
-        Err(io::Error::new(
+        Err(Error::from(io::Error::new(
             io::ErrorKind::AlreadyExists,
             "Vault already exists",
-        ))
+        )))
     } else {
         write(path, password, Book::new())
     }
