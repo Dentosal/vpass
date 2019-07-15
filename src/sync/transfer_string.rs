@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn metadata_serialized_size() {
-        let m = Metadata::new(&vec![1; 100]);
+        let m = Metadata::new(&[1; 100]);
         assert_eq!(
             bincode::serialize(&m).unwrap().len(),
             std::mem::size_of::<Metadata>()
