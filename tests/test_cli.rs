@@ -4,7 +4,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::process::Command;
-use tempfile::{tempdir, TempDir};
+
+mod common;
+use common::*;
 
 #[test]
 fn test_cli_version() {
@@ -19,71 +21,6 @@ fn test_cli_version() {
         String::from_utf8(output.stdout).unwrap()
     );
     assert_eq!("", String::from_utf8(output.stderr).unwrap());
-}
-
-#[must_use]
-fn init() -> io::Result<TempDir> {
-    let td = tempdir().unwrap();
-    let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
-        .unwrap()
-        .args(&["init"])
-        .env("VPASS_VAULT_DIR", td.path())
-        .unwrap();
-    assert!(output.status.success());
-    Ok(td)
-}
-
-macro_rules! cmd {
-    ($td:expr; $($a:expr)*) => {{
-        let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
-            .unwrap()
-            .args(&[$($a,)*])
-            .env("VPASS_VAULT_DIR", $td.path())
-            .unwrap();
-        assert!(output.status.success());
-    }};
-}
-
-fn vault_create(td: &TempDir, name: &str, password: &str) {
-    cmd!(td; "-p" password "vault" "create" name)
-}
-
-fn vault_rename(td: &TempDir, old_name: &str, new_name: &str) {
-    cmd!(td; "vault" "rename" old_name new_name)
-}
-
-fn vault_delete(td: &TempDir, name: &str) {
-    cmd!(td; "vault" "delete" name "--force")
-}
-
-fn vault_change_password(td: &TempDir, name: &str, old_password: &str, new_password: &str) {
-    cmd!(td; "-p" old_password "vault" "change-password" name "-p" new_password)
-}
-
-fn check_password(td: &TempDir, name: &str, password: &str) {
-    cmd!(td; "-p" password "-n" name "list")
-}
-
-fn add_item(td: &TempDir, name: &str, password: &str, item_name: &str, item_password: &str) {
-    cmd!(td; "-p" password "-n" name "add" item_name "-p" item_password)
-}
-
-fn edit_item_change_password(td: &TempDir, name: &str, password: &str, item_name: &str, new_password: &str) {
-    cmd!(td; "-p" password "-n" name "edit" item_name "-p" new_password)
-}
-
-fn edit_item_add_tag(td: &TempDir, name: &str, password: &str, item_name: &str, tag: &str) {
-    cmd!(td; "-p" password "-n" name "edit" item_name "-t" tag)
-}
-
-fn get_item_json(td: &TempDir, name: &str, password: &str, item_name: &str) -> serde_json::Value {
-    let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
-        .unwrap()
-        .args(&["-p", password, "-n", name, "show", item_name, "-jp"])
-        .env("VPASS_VAULT_DIR", td.path())
-        .unwrap();
-    assert!(output.status.success());
-    serde_json::from_slice(&output.stdout).unwrap()
 }
 
 #[test]
@@ -108,7 +45,7 @@ fn test_vault_ops() -> io::Result<()> {
     assert_ne!(t1, t2, "Equal nonce or password salt shouldn't occur");
 
     let t3 = fs::read(td.path().join("test3.vpass_vault"))?;
-    vault_rename(&td, "test3", "test4");
+    vault_rename(&td, "test3", "test4", "password2");
     let t4 = fs::read(td.path().join("test4.vpass_vault"))?;
     assert_eq!(t3, t4, "Rename should not modify vault");
 
@@ -157,11 +94,11 @@ fn test_vault_rename_duplicate() {
     let td = init().unwrap();
     vault_create(&td, "test1", "p1");
     vault_create(&td, "test2", "p2");
-    vault_rename(&td, "test1", "test2");
+    vault_rename(&td, "test1", "test2", "p1");
 }
 
 #[test]
-fn test_vault_new_item() -> io::Result<()> {
+fn test_new_item() -> io::Result<()> {
     let td = init()?;
     vault_create(&td, "test", "password");
     add_item(&td, "test", "password", "item_name", "item_password");
@@ -172,7 +109,29 @@ fn test_vault_new_item() -> io::Result<()> {
 }
 
 #[test]
-fn test_vault_edit_item_password() -> io::Result<()> {
+fn test_remove_item() -> io::Result<()> {
+    let td = init()?;
+    vault_create(&td, "test", "password");
+    add_item(&td, "test", "password", "item_name", "item_password");
+    remove_item(&td, "test", "password", "item_name");
+    Ok(())
+}
+
+#[test]
+fn test_remove_readd_item() -> io::Result<()> {
+    let td = init()?;
+    vault_create(&td, "test", "password");
+    add_item(&td, "test", "password", "item_name", "item_password");
+    remove_item(&td, "test", "password", "item_name");
+    add_item(&td, "test", "password", "item_name", "item_password2");
+    let json = get_item_json(&td, "test", "password", "item_name");
+    let pw = json.as_object().unwrap().get("password").unwrap();
+    assert_eq!(pw, "item_password2");
+    Ok(())
+}
+
+#[test]
+fn test_edit_item_password() -> io::Result<()> {
     let td = init()?;
     vault_create(&td, "test", "password");
     add_item(&td, "test", "password", "item_name", "item_password");
@@ -184,7 +143,7 @@ fn test_vault_edit_item_password() -> io::Result<()> {
 }
 
 #[test]
-fn test_vault_edit_item_tags() -> io::Result<()> {
+fn test_edit_item_tags() -> io::Result<()> {
     let td = init()?;
     vault_create(&td, "test", "password");
     add_item(&td, "test", "password", "item_name", "item_password");

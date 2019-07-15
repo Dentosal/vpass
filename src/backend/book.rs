@@ -35,8 +35,13 @@ impl Book {
         ItemId(Uuid::new_v4())
     }
 
+    pub fn creation_time(&self) -> DateTime<Utc> {
+        self.created
+    }
+
     /// Create and update with data
-    pub fn add(&mut self, item: Item) -> ItemId {
+    pub fn add(&mut self, item: Item) -> VResult<ItemId> {
+        self.verify_not_exists(&item.name)?;
         let item_id = self.next_id();
         let time = Utc::now();
         self.events.push(EventFrame {
@@ -47,16 +52,7 @@ impl Book {
             time,
             event: Event::Update(item_id, item),
         });
-        item_id
-    }
-
-    pub fn create(&mut self) -> ItemId {
-        let item_id = self.next_id();
-        self.events.push(EventFrame {
-            time: Utc::now(),
-            event: Event::Create(item_id),
-        });
-        item_id
+        Ok(item_id)
     }
 
     /// Updates item using new value
@@ -73,9 +69,7 @@ impl Book {
     /// Updates item by mapping the old value
     #[must_use]
     fn modify<F, R>(&mut self, item_id: ItemId, f: F) -> Option<R>
-    where
-        F: FnOnce(&mut Item) -> R,
-    {
+    where F: FnOnce(&mut Item) -> R {
         let mut item = self.read_item(item_id)?;
         let r = f(&mut item);
         self.update(item_id, item);
@@ -85,13 +79,11 @@ impl Book {
     /// Updates item by mapping the old value
     #[must_use]
     pub fn modify_by_name<F, R>(&mut self, name: &str, f: F) -> VResult<R>
-    where
-        F: FnOnce(&mut Item) -> R,
-    {
+    where F: FnOnce(&mut Item) -> R {
         Ok(self
             .modify(
                 self.find_id_by_name(name)
-                    .ok_or(Error::NoSuchItem(name.to_owned()))?,
+                    .ok_or_else(|| Error::NoSuchItem(name.to_owned()))?,
                 f,
             )
             .unwrap())
@@ -188,9 +180,7 @@ impl Book {
     }
 
     fn find_id<F>(&self, f: F) -> Option<ItemId>
-    where
-        F: Fn(&Item) -> bool,
-    {
+    where F: Fn(&Item) -> bool {
         self.id_items()
             .iter()
             .find(|(_, item)| f(item))
@@ -207,7 +197,7 @@ impl Book {
 
     fn get_id_by_name(&self, name: &str) -> VResult<ItemId> {
         self.find_id_by_name(name)
-            .ok_or(Error::NoSuchItem(name.to_owned()))
+            .ok_or_else(|| Error::NoSuchItem(name.to_owned()))
     }
 
     pub fn get_item_by_name(&self, name: &str) -> VResult<Item> {
@@ -224,10 +214,14 @@ impl Book {
 
     pub fn verify_not_exists(&self, name: &str) -> VResult<()> {
         if self.has_item(name) {
-            Err(Error::ItemALreadyExists(name.to_owned()))
+            Err(Error::ItemAlreadyExists(name.to_owned()))
         } else {
             Ok(())
         }
+    }
+
+    pub fn item_count(&self) -> usize {
+        self.items().len()
     }
 
     pub fn item_names(&self) -> Vec<String> {
@@ -251,17 +245,23 @@ impl Book {
         }
     }
 
+    /// Check if two books have same origin, i.e. creation time, and can be merged together
+    #[must_use]
+    pub fn has_same_origin(&self, other: &Self) -> bool {
+        self.created != other.created
+    }
+
     /// Merge two versions of one password book together
     #[must_use]
-    pub fn merge_versions(mut self, other: Self) -> Result<Self, VersionMergeError> {
-        if self.created != other.created {
+    pub fn merge_versions(mut self, other: &Self) -> Result<Self, VersionMergeError> {
+        if self.has_same_origin(other) {
             Err(VersionMergeError::DifferentOrigins)
         } else if let Some(di) = self.differ_index(&other) {
             println!("{:?}", di);
             // Remove new events from self, making it the common prefix
             let mut tail = self.events.split_off(di);
             // Sort only new events, and append them
-            tail.extend(other.events.into_iter().skip(di).collect::<Vec<_>>());
+            tail.extend(other.events.iter().skip(di).cloned().collect::<Vec<_>>());
             tail.sort();
             for t in &tail {
                 println!("{:?}", t);
@@ -353,6 +353,9 @@ pub struct ItemMetadata {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Item {
     /// Although all fields have ids, names must still be unique
+    /// Name schema, by-convention:
+    ///     * Folders can be emulated with "path/to/filename"
+    ///     * Folder "vpass/" contains internal vpass items
     pub name: String,
     /// Password itself, if set
     pub password: Option<Password>,
@@ -372,6 +375,8 @@ impl Item {
     }
 }
 
+/// Plaintext password.
+/// A separate struct is used to hide plaintext password from debug output.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Password(String);
 impl Password {
@@ -400,7 +405,7 @@ mod tests {
     #[test]
     fn book_build() {
         let mut book = Book::new();
-        let id0 = book.add(Item::new("Test 1"));
+        let id0 = book.add(Item::new("Test 1")).unwrap();
 
         book.modify(id0, |it| {
             it.password = Some(Password::new("SecondPass123"));
@@ -409,9 +414,9 @@ mod tests {
 
         let mut item1 = Item::new("Test 2");
         item1.password = Some(Password::new("TestPass456"));
-        book.add(item1);
+        book.add(item1).unwrap();
 
-        book.add(Item::new("Test 3"));
+        book.add(Item::new("Test 3")).unwrap();
 
         let mut items = book.items_metadata();
         items.sort_by_key(|(_, meta)| meta.created);
@@ -430,14 +435,14 @@ mod tests {
 
         assert_eq!(book1.differ_index(&book1), None);
 
-        book1.add(Item::new("Test 1"));
+        book1.add(Item::new("Test 1")).unwrap();
         assert_eq!(book1.differ_index(&book1), None);
 
         let mut book2 = book1.clone();
-        book2.add(Item::new("Test 2"));
+        book2.add(Item::new("Test 2")).unwrap();
         assert_eq!(book1.differ_index(&book2), Some(2));
 
-        book2.add(Item::new("Test 3"));
+        book2.add(Item::new("Test 3")).unwrap();
         assert_eq!(book1.differ_index(&book2), Some(2));
 
         book2.remove("Test 3").unwrap();
@@ -449,13 +454,13 @@ mod tests {
         let mut book1 = Book::new();
         let mut book2 = book1.clone();
 
-        book1.add(Item::new("Test 1"));
-        book1.add(Item::new("Test 2"));
+        book1.add(Item::new("Test 1")).unwrap();
+        book1.add(Item::new("Test 2")).unwrap();
 
-        book2.add(Item::new("Test 3"));
+        book2.add(Item::new("Test 3")).unwrap();
 
         let mut book3 = book2.clone();
-        book3.add(Item::new("Test 4"));
+        book3.add(Item::new("Test 4")).unwrap();
 
         assert_eq!(book1.item_ids().len(), 2);
         assert_eq!(book2.item_ids().len(), 1);
@@ -465,10 +470,10 @@ mod tests {
 
         assert_eq!(book3.item_ids().len(), 1);
 
-        let merged_12 = book1.merge_versions(book2)?;
+        let merged_12 = book1.merge_versions(&book2)?;
         assert_eq!(merged_12.item_ids().len(), 3);
 
-        let merged_123 = merged_12.merge_versions(book3.clone())?;
+        let merged_123 = merged_12.merge_versions(&book3)?;
         assert_eq!(
             merged_123
                 .items()
@@ -478,7 +483,7 @@ mod tests {
             hashset!["Test 1".to_owned(), "Test 2".to_owned(), "Test 4".to_owned()]
         );
 
-        let merged_1233 = merged_123.clone().merge_versions(book3)?;
+        let merged_1233 = merged_123.clone().merge_versions(&book3)?;
         let mut items_123 = merged_123.items_metadata();
         items_123.sort_by_key(|(_, meta)| meta.created);
         let mut items_1233 = merged_1233.items_metadata();

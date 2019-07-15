@@ -2,6 +2,35 @@
 
 Password manager library / backend / CLI.
 
+## Features (completed / planned)
+
+- [x] Stores full password history
+    - [ ] CLI access to history
+- [x] Small easy-to-read codebase
+- [x] Machine-readable command line output
+- [x] Atomic file updates
+    - Local changes are always atomic, and synchronization is applied in a separate pass
+- [x] Synchronization through multiple providers
+    - [x] GitHub repositories (through API)
+    - [x] Other filesystem locations
+    - [ ] SSH filesystem
+    - [ ] Git
+    - [ ] S3 Buckets
+- [ ] Web interface
+- [ ] Web browser plugins
+- [ ] Batch imports from other password managers
+- [ ] System keychain integration
+- [ ] Shared vaults
+
+## Concepts
+
+### Vault
+
+An encrypted book.
+
+### Book
+
+A container for password entries.
 
 ## Security
 

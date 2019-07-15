@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 #[structopt(rename_all = "kebab-case")]
 pub struct OptRoot {
     /// Quiet mode: only print errors and prompts
@@ -42,7 +42,7 @@ pub struct OptRoot {
     pub subcommand: SubCommand,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 #[structopt(rename_all = "kebab-case")]
 pub enum SubCommand {
     /// Initialize: create necessary directories and config file
@@ -72,28 +72,36 @@ pub enum SubCommand {
     /// Copy password of an entry
     Copy(OptCopy),
 
+    /// Edit synchronization settings of a vault
+    Sync(OptSync),
+
     /// Create or edit config.
     /// By default, creates configuration file if it doesn't exist.
     Config(OptConfig),
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptVault {
     /// Subcommand
     #[structopt(subcommand)]
     pub subcommand: VaultSubCommand,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 #[structopt(rename_all = "kebab-case")]
 pub enum VaultSubCommand {
     /// Create a new vault
     Create(OptVaultCreate),
-    /// Rename a vault
+    /// Import a vault from synchronization json
+    Import(OptVaultImport),
+    /// Rename a vault.
     Rename(OptVaultRename),
-    /// Delete a vault
+    /// Delete a vault locally. Doesn't delete the remote copy.
     Delete(OptVaultDelete),
-    /// Change vault password
+    /// Copy a vault, disassociating the new copy from remote copy
+    Copy(OptVaultCopy),
+    /// Change vault password.
+    /// This is always synchronized.
     ChangePassword(OptVaultChangePassword),
     /// List vaults
     List(OptVaultList),
@@ -101,27 +109,58 @@ pub enum VaultSubCommand {
     Show(OptVaultShow),
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptVaultCreate {
     pub name: String,
+
+    /// Give password as argument instead of prompt
+    #[structopt(short, long)]
+    pub password: Option<String>,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
+#[structopt(rename_all = "kebab-case")]
+pub struct OptVaultImport {
+    /// Name must match the name on remote.
+    /// This restriction might be raised in the future.
+    pub name: String,
+
+    /// Use `sync export` to export vaults
+    pub import_string: String,
+}
+
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptVaultRename {
     pub old_name: String,
     pub new_name: String,
+
+    /// Keep old version on remote
+    #[structopt(long)]
+    pub remote_keep_old: bool,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptVaultDelete {
     pub name: String,
 
     /// Do not prompt for vault password to confirm
-    #[structopt(long)]
+    #[structopt(long, group = "exclusive")]
     pub force: bool,
+
+    /// Delete the remote copy too
+    #[structopt(long, group = "exclusive")]
+    pub remote: bool,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
+#[structopt(rename_all = "kebab-case")]
+pub struct OptVaultCopy {
+    pub old_name: String,
+    pub new_name: String,
+}
+
+#[derive(StructOpt, Debug, Clone, PartialEq)]
+#[structopt(rename_all = "kebab-case")]
 pub struct OptVaultChangePassword {
     pub name: String,
 
@@ -130,14 +169,14 @@ pub struct OptVaultChangePassword {
     pub password: Option<String>,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptVaultList {
     /// Output as json
     #[structopt(short, long)]
     pub json: bool,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptVaultShow {
     pub name: String,
 
@@ -146,7 +185,7 @@ pub struct OptVaultShow {
     pub json: bool,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptAdd {
     /// Name of the entry
     pub name: String,
@@ -160,15 +199,15 @@ pub struct OptAdd {
     pub notes: Vec<String>,
 
     /// Give password as argument instead of prompt
-    #[structopt(short, long, group = "password_xor")]
+    #[structopt(short, long, group = "password_exclusive")]
     pub password: Option<String>,
 
     /// Skip password
-    #[structopt(short, long, group = "password_xor")]
+    #[structopt(short, long, group = "password_exclusive")]
     pub skip_password: bool,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptEdit {
     /// Name of the entry
     pub name: String,
@@ -190,15 +229,15 @@ pub struct OptEdit {
     pub remove_notes: Vec<usize>,
 
     /// Change password, takes password as argument instead of prompt
-    #[structopt(short, long, group = "password_xor")]
+    #[structopt(short, long, group = "password_exclusive")]
     pub password: Option<String>,
 
     /// Change password, prompts for a new one
-    #[structopt(short, long, group = "password_xor")]
+    #[structopt(short, long, group = "password_exclusive")]
     pub change_password: bool,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 #[structopt(rename_all = "kebab-case")]
 pub struct OptRename {
     /// Current name of the entry
@@ -208,19 +247,19 @@ pub struct OptRename {
     pub new_name: String,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptRemove {
     pub name: String,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptList {
     /// Output as json
     #[structopt(short, long)]
     pub json: bool,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptShow {
     pub name: String,
 
@@ -233,18 +272,55 @@ pub struct OptShow {
     pub json: bool,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptCopy {
     pub name: String,
 }
 
-#[derive(StructOpt, Debug, PartialEq)]
+#[derive(StructOpt, Debug, Clone, PartialEq)]
+pub struct OptSync {
+    /// Subcommand
+    #[structopt(subcommand)]
+    pub subcommand: Option<SyncSubCommand>,
+}
+
+#[derive(StructOpt, Debug, Clone, PartialEq)]
+#[structopt(rename_all = "kebab-case")]
+pub enum SyncSubCommand {
+    /// Set up synchronization for the vault
+    Setup(OptSyncSetup),
+    /// Export provider settings as JSON.
+    /// Use `vault import` to download this vault on another device.
+    /// If enabling sync when the same vault has manually been copied to another device,
+    /// or changing to another synchronization service, use  `sync setup --import`.
+    /// Includes per-provider data, most likely containing access tokens etc.
+    Export,
+    /// Remove synchronization from the vault
+    Detach,
+    /// Overwrite remote changes, "force push"
+    Overwrite,
+    /// Show synchronization target, just provider for now. Use export for machine readable mode.
+    Show,
+}
+
+#[derive(StructOpt, Debug, Clone, PartialEq)]
+pub struct OptSyncSetup {
+    /// Give options an import string from `sync export`
+    #[structopt(short, long, group = "exclusive")]
+    pub import: Option<String>,
+
+    /// Give options as json blob
+    #[structopt(short, long, group = "exclusive")]
+    pub json: Option<String>,
+}
+
+#[derive(StructOpt, Debug, Clone, PartialEq)]
 pub struct OptConfig {
     /// Print config as JSON
-    #[structopt(short, long, group = "xor")]
+    #[structopt(short, long, group = "exclusive")]
     pub json: bool,
 
     /// Override the config file with default config
-    #[structopt(long, group = "xor")]
+    #[structopt(long, group = "exclusive")]
     pub clear: bool,
 }

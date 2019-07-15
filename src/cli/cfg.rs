@@ -10,7 +10,7 @@ pub struct Config {
     pub default_vault: Option<String>,
 }
 impl Config {
-    pub const fn default() -> Self {
+    pub fn default() -> Self {
         Self { default_vault: None }
     }
 
@@ -23,7 +23,7 @@ impl Config {
     }
 
     pub fn from_json_bytes(data: &[u8]) -> VResult<Self> {
-        serde_json::from_slice(data).map_err(|e| Error::ConfigInvalidJson(e))
+        serde_json::from_slice(data).map_err(Error::ConfigInvalidJson)
     }
 }
 
@@ -43,9 +43,7 @@ pub fn write(args: &opt::OptRoot, c: Config) -> VResult<()> {
 }
 
 pub fn modify<F, R>(args: &opt::OptRoot, f: F) -> VResult<R>
-where
-    F: FnOnce(&mut Config) -> R,
-{
+where F: FnOnce(&mut Config) -> R {
     let mut c = read(args)?;
     let r = f(&mut c);
     write(args, c)?;
