@@ -55,7 +55,9 @@ impl SyncProvider for Mock {
         ))
     }
 
-    fn delete(&mut self, key: &str) -> SyncResult<()> {
+    fn delete(&mut self, key: &str, update_key: UpdateKey) -> SyncResult<()> {
+        let (_, uk) = self.read(key)?;
+        assert_eq!(uk, update_key, "Incorrect update key");
         self.items.remove(key);
         Ok(())
     }

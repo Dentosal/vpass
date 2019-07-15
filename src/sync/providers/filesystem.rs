@@ -48,7 +48,7 @@ impl SyncProvider for FileSystem {
         if self.config.path.exists() {
             Ok(())
         } else {
-            Err(Error::Misc("Target folder missing".to_owned()))
+            Err(Error::InvalidRemote)
         }
     }
 
@@ -70,7 +70,7 @@ impl SyncProvider for FileSystem {
         debug!("Update: {}", key);
         let (_, uk) = self.read(key)?;
         if uk != update_key {
-            Err(Error::Misc("Wrong update key".to_owned()))
+            Err(Error::InvalidUpdateKey)
         } else {
             fs::write(self.config.path.join(key), &value)?;
             Ok(())
@@ -87,9 +87,14 @@ impl SyncProvider for FileSystem {
         Ok((data, uk))
     }
 
-    fn delete(&mut self, key: &str) -> SyncResult<()> {
+    fn delete(&mut self, key: &str, update_key: UpdateKey) -> SyncResult<()> {
         debug!("Delete: {}", key);
-        fs::remove_file(self.config.path.join(key))?;
-        Ok(())
+        let (_, uk) = self.read(key)?;
+        if uk != update_key {
+            Err(Error::InvalidUpdateKey)
+        } else {
+            fs::remove_file(self.config.path.join(key))?;
+            Ok(())
+        }
     }
 }

@@ -170,12 +170,12 @@ fn run_command(args: opt::OptRoot) -> VResult<()> {
                     Ok(()) => {
                         // Local file renamed, remove old file from remote
                         if !c.remote_keep_old {
-                            vpass::sync::delete(&vault_filename(&c.old_name), &book)?;
+                            vpass::sync::vault_delete(&vault_filename(&c.old_name), &book)?;
                         }
                     },
                     Err(e) => {
                         // Could not rename local file: Roll back remote changes
-                        vpass::sync::delete(&vault_filename(&c.new_name), &book)?;
+                        vpass::sync::vault_delete(&vault_filename(&c.new_name), &book)?;
                         return Err(e.into());
                     },
                 }
@@ -191,7 +191,7 @@ fn run_command(args: opt::OptRoot) -> VResult<()> {
                     if c.remote {
                         // Delete remote first, as if there are errors,
                         // retry isn't possible withtout a local copy
-                        vpass::sync::delete(&vault_filename(&c.name), &book)?;
+                        vpass::sync::vault_delete(&vault_filename(&c.name), &book)?;
                     }
                 }
                 fs::remove_file(&p).unwrap();
@@ -493,6 +493,15 @@ fn run_command(args: opt::OptRoot) -> VResult<()> {
                 vpass::sync::config::book_remove(&mut book)?;
                 vpass::write(&p, &pw, book)?;
             },
+            Some(SyncSubCommand::Delete) => {
+                let p = get_vault_path(&args)?;
+                println!("Confirm remote vault deletion:");
+                let pw = prompt_vault_password!();
+                let book = vpass::read(&p, &pw)?;
+                // TODO: non-default locations?
+                let name = p.file_name().unwrap().to_str().unwrap();
+                vpass::sync::vault_delete(name, &book)?;
+            },
             Some(SyncSubCommand::Overwrite) => {
                 let p = get_vault_path(&args)?;
                 let pw = prompt_vault_password!();
@@ -501,12 +510,18 @@ fn run_command(args: opt::OptRoot) -> VResult<()> {
                 let name = p.file_name().unwrap().to_str().unwrap();
                 vpass::sync::vault_overwrite(name, &book, &pw)?;
             },
-            Some(SyncSubCommand::Show) => {
+            Some(SyncSubCommand::Show(ref c)) => {
                 let p = get_vault_path(&args)?;
                 let pw = prompt_vault_password!();
                 let book = vpass::read(&p, &pw)?;
                 if let Some(config) = vpass::sync::config::book_read(&book)? {
-                    println!("{:?}", config.service);
+                    if c.json {
+                        println!("{}", serde_json::to_string(&config).unwrap());
+                    } else {
+                        println!("{:?}", config.service);
+                    }
+                } else if c.json {
+                    println!("{{}}");
                 } else {
                     println!("Synchronization not set up");
                 }

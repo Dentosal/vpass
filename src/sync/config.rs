@@ -64,13 +64,17 @@ pub fn book_remove(book: &mut Book) -> VResult<()> {
     Ok(())
 }
 
-/// Setup synchronization configuration for a book
+/// Setup synchronization configuration for a book,
+/// overwriting any previous value
 pub fn book_setup(book: &mut Book, cfg: SyncConfig) -> VResult<()> {
     // Verify config validity
     let mut service = cfg.service.load(&cfg.data);
     // Check credentials
     (*service).ping()?;
     // Actually write to the book
+    if book.has_item(ITEM_NAME_SYNC_CONFIG) {
+        book.remove(ITEM_NAME_SYNC_CONFIG)?;
+    }
     let mut item = Item::new(ITEM_NAME_SYNC_CONFIG);
     item.password = Some(Password::new(&serde_json::to_string(&cfg).unwrap()));
     book.add(item)?;

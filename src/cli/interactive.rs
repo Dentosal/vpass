@@ -12,12 +12,39 @@ use std::str::FromStr;
 use serde_json::Value;
 use strum::IntoEnumIterator;
 
+pub fn prompt_string(prompt: &str) -> VResult<String> {
+    let mut buf = String::new();
+    loop {
+        print!("{}: ", prompt);
+        std::io::stdout().flush().unwrap();
+        std::io::stdin().lock().read_line(&mut buf).unwrap();
+        buf = buf.trim().to_owned();
+        if !buf.is_empty() {
+            return Ok(buf);
+        }
+        println!("Non-empty answer required");
+        buf.clear();
+    }
+}
+
+pub fn prompt_password(prompt: &str) -> VResult<String> {
+    loop {
+        let pass = rpassword::read_password_from_tty(Some(&format!("{}: ", prompt)))?;
+        println!();
+        if pass != "" {
+            return Ok(pass);
+        }
+        println!("Non-empty password required");
+    }
+}
+
 pub fn prompt_boolean(prompt: &str) -> VResult<bool> {
     let mut buf = String::new();
     loop {
         print!("{} [y/n]: ", prompt);
         std::io::stdout().flush().unwrap();
         std::io::stdin().lock().read_line(&mut buf).unwrap();
+        buf = buf.trim().to_owned();
         if buf == "y" || buf == "yes" {
             return Ok(true);
         } else if buf == "n" || buf == "no" {

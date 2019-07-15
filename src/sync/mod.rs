@@ -91,7 +91,7 @@ pub trait SyncProvider {
     }
 
     /// Read value by key
-    fn delete(&mut self, key: &str) -> SyncResult<()>;
+    fn delete(&mut self, key: &str, update_key: UpdateKey) -> SyncResult<()>;
 }
 
 fn load_service(book: &Book) -> VResult<Option<Box<dyn SyncProvider>>> {
@@ -166,9 +166,11 @@ pub fn vault_overwrite(key: &str, book: &Book, password: &str) -> VResult<()> {
 }
 
 /// Delete a vault from the remote.
-pub fn delete(key: &str, book: &Book) -> VResult<()> {
+pub fn vault_delete(key: &str, book: &Book) -> VResult<()> {
     if let Some(mut service) = load_service(book)? {
-        (*service).delete(key)?;
+        if let Ok((_, update_key)) = (*service).read(key) {
+            (*service).delete(key, update_key)?;
+        }
     }
     Ok(())
 }

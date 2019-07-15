@@ -289,7 +289,7 @@ pub struct OptSync {
 pub enum SyncSubCommand {
     /// Set up synchronization for the vault
     Setup(OptSyncSetup),
-    /// Export provider settings as JSON.
+    /// Export provider settings as a transfer string.
     /// Use `vault import` to download this vault on another device.
     /// If enabling sync when the same vault has manually been copied to another device,
     /// or changing to another synchronization service, use  `sync setup --import`.
@@ -297,10 +297,12 @@ pub enum SyncSubCommand {
     Export,
     /// Remove synchronization from the vault
     Detach,
+    /// Delete remote vault
+    Delete,
     /// Overwrite remote changes, "force push"
     Overwrite,
-    /// Show synchronization target, just provider for now. Use export for machine readable mode.
-    Show,
+    /// Show synchronization target.
+    Show(OptSyncShow),
 }
 
 #[derive(StructOpt, Debug, Clone, PartialEq)]
@@ -312,6 +314,13 @@ pub struct OptSyncSetup {
     /// Give options as json blob
     #[structopt(short, long, group = "exclusive")]
     pub json: Option<String>,
+}
+
+#[derive(StructOpt, Debug, Clone, PartialEq)]
+pub struct OptSyncShow {
+    /// Print as JSON. This includes private access tokens etc. from integration config.
+    #[structopt(short, long)]
+    pub json: bool,
 }
 
 #[derive(StructOpt, Debug, Clone, PartialEq)]
