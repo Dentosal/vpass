@@ -22,16 +22,6 @@ Password manager library / backend / CLI.
 - [ ] System keychain integration
 - [ ] Shared vaults
 
-## Concepts
-
-### Vault
-
-An encrypted book.
-
-### Book
-
-A container for password entries.
-
 ## Security
 
 This program has not been audited, and might not be secure. However, I'm not aware of any vulnerabilities or weaknesses.
