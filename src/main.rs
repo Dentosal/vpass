@@ -19,6 +19,25 @@ fn prompt_password(prompt: &str) -> VResult<String> {
     }
 }
 
+/// Quote and escape the password if it contains whitespace or non-ascii special characters
+#[must_use]
+fn printable_password(original: &str) -> String {
+    if original
+        .chars()
+        .all(|c| c.is_ascii_graphic() || c.is_alphanumeric())
+    {
+        original.to_owned()
+    } else {
+        format!(
+            "\"{}\" (escaped)",
+            original
+                .chars()
+                .map(|c| c.escape_default().to_string())
+                .collect::<String>()
+        )
+    }
+}
+
 struct Vaults(HashSet<String>);
 impl Vaults {
     fn new(args: &opt::OptRoot) -> VResult<Self> {
@@ -416,7 +435,10 @@ fn run_command(args: opt::OptRoot) -> VResult<()> {
                 if item.password.is_none() {
                     println!("password not stored");
                 } else if c.password {
-                    println!("password: {}", item.password.clone().unwrap().plaintext()); // TODO: Special handling for some cases
+                    println!(
+                        "password: {}",
+                        printable_password(&item.password.clone().unwrap().plaintext())
+                    );
                 } else {
                     println!("password: ********");
                 }
